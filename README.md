@@ -2,7 +2,7 @@
 
 ## Lancer
     docker compose up --build
-Application : http://localhost:3000 — les données persistent dans le volume `mysqldata`.
+Application : http://localhost:3001 — les données persistent dans le volume `mysqldata`.
 
 ## Développement local
 - Base : `docker compose up db` (ajouter `ports: ["3306:3306"]` au service db)
