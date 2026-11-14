@@ -1,0 +1,28 @@
+services:
+  db:
+    image: mysql:8.4
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: library
+      MYSQL_USER: library
+      MYSQL_PASSWORD: library
+      MYSQL_ROOT_PASSWORD: root
+    volumes: [ "mysqldata:/var/lib/mysql" ]   # volume persistant
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:mysql://db:3306/library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USER: library
+      DB_PASSWORD: library
+    depends_on: { db: { condition: service_healthy } }
+  web:
+    build: ./frontend
+    ports: [ "3001:80" ]
+    depends_on: [ api ]
+volumes:
+  mysqldata:

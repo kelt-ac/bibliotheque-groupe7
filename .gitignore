@@ -1,0 +1,20 @@
+# Backend (Maven / Java)
+backend/target/
+*.class
+*.jar
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+
+# Secrets et configuration locale
+.env
+*.secret
+k8s/01-secret.yaml
+
+# IDE et système
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
