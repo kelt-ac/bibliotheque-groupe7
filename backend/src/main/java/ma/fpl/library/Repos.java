@@ -12,5 +12,9 @@ interface ReaderRepo extends JpaRepository<Reader, Long> {}
 interface LoanRepo extends JpaRepository<Loan, Long> {
   List<Loan> findByReturnDateIsNullOrderByDueDate();
   long countByReaderIdAndReturnDateIsNull(Long readerId);
+  List<Loan> findByReaderIdOrderByLoanDateDesc(Long readerId);
   List<Loan> findByReturnDateIsNullAndDueDateBeforeOrderByDueDate(LocalDate d);
+}
+interface AppUserRepo extends JpaRepository<AppUser, Long> {
+  java.util.Optional<AppUser> findByUsername(String username);
 }
