@@ -1,26 +1,79 @@
 import { useEffect, useState, useCallback } from 'react'
 
+const getSession = () => JSON.parse(localStorage.getItem('session') || 'null')
+
 async function api(path, method = 'GET', body) {
-  const res = await fetch('/api' + path, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+  const s = getSession()
+  const res = await fetch('/api' + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(s && { Authorization: 'Bearer ' + s.token }) },
+    body: body && JSON.stringify(body)
+  })
+  if (res.status === 401 && s) { localStorage.removeItem('session'); location.reload() }   // session expirée
+  if (res.status === 403) throw new Error('Accès refusé : droits insuffisants')
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Erreur ' + res.status)
   return res.status === 204 || res.headers.get('content-length') === '0' ? null : res.json().catch(() => null)
 }
 
 export default function App() {
+  const [session, setSession] = useState(getSession())
   const [tab, setTab] = useState('catalogue')
   const [msg, setMsg] = useState(null)
   const run = async (fn, ok) => { try { await fn(); setMsg(ok && { t: ok }) } catch (e) { setMsg({ t: e.message, err: true }) } }
-  const tabs = { catalogue: 'Catalogue', emprunts: 'Emprunts et retours', retards: 'Retards', biblio: 'Espace bibliothécaire' }
+  const role = session?.role
+  const tabs = {
+    catalogue: 'Catalogue',
+    ...(role === 'READER' && { mes: 'Mes emprunts' }),
+    ...(role === 'LIBRARIAN' && { emprunts: 'Emprunts et retours', retards: 'Retards', biblio: 'Espace bibliothécaire' }),
+    ...(session && { compte: 'Mon compte' }),
+    ...(!session && { login: 'Connexion' })
+  }
+  const [askLogout, setAskLogout] = useState(false)
+  const logout = () => { localStorage.removeItem('session'); setSession(null); setTab('catalogue'); setMsg(null) }
+  const onLogin = s => { localStorage.setItem('session', JSON.stringify(s)); setSession(s); setTab('catalogue'); setMsg(null) }
   return (<>
-    <header><h1>Bibliothèque universitaire</h1>
+    <header>
+      <div className="top"><h1>Bibliothèque universitaire</h1>
+        {session && <span>{session.username} ({role === 'LIBRARIAN' ? 'bibliothécaire' : 'lecteur'}) <button onClick={() => setAskLogout(true)}>Déconnexion</button></span>}</div>
       <nav>{Object.entries(tabs).map(([k, v]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); setMsg(null) }}>{v}</button>)}</nav></header>
     <main>
       {msg && <div className={'msg' + (msg.err ? ' err' : '')}>{msg.t}</div>}
       {tab === 'catalogue' && <Catalogue />}
-      {tab === 'emprunts' && <Loans run={run} />}
-      {tab === 'retards' && <Overdue />}
-      {tab === 'biblio' && <Librarian run={run} />}
-    </main></>)
+      {tab === 'login' && !session && <Login onLogin={onLogin} />}
+      {tab === 'compte' && session && <Account run={run} />}
+      {tab === 'mes' && role === 'READER' && <MyLoans />}
+      {tab === 'emprunts' && role === 'LIBRARIAN' && <Loans run={run} />}
+      {tab === 'retards' && role === 'LIBRARIAN' && <Overdue />}
+      {tab === 'biblio' && role === 'LIBRARIAN' && <Librarian run={run} />}
+    </main>
+    {askLogout && <ConfirmLogout onCancel={() => setAskLogout(false)} onConfirm={() => { setAskLogout(false); logout() }} />}</>)
+}
+
+function Login({ onLogin }) {
+  const [reg, setReg] = useState(false)
+  const [f, setF] = useState({ username: '', password: '', name: '', email: '', studentId: '' })
+  const [err, setErr] = useState(null)
+  const set = k => e => setF({ ...f, [k]: e.target.value })
+  const submit = async () => { try { onLogin(await api(reg ? '/auth/register' : '/auth/login', 'POST', f)) } catch (e) { setErr(e.message) } }
+  return (<>
+    <h2>{reg ? 'Créer un compte lecteur' : 'Connexion'}</h2>
+    {err && <div className="msg err">{err}</div>}
+    <div className="row">
+      <input placeholder="Nom d'utilisateur" value={f.username} onChange={set('username')} />
+      <input type="password" placeholder="Mot de passe (8 caractères min.)" value={f.password} onChange={set('password')} onKeyDown={e => e.key === 'Enter' && !reg && submit()} />
+      {reg && <><input placeholder="Nom complet" value={f.name} onChange={set('name')} /><input placeholder="Email" value={f.email} onChange={set('email')} /><input placeholder="N° étudiant" value={f.studentId} onChange={set('studentId')} /></>}
+      <button className="p" onClick={submit}>{reg ? 'Créer le compte' : 'Se connecter'}</button></div>
+    <button onClick={() => { setReg(!reg); setErr(null) }}>{reg ? "J'ai déjà un compte" : 'Créer un compte lecteur'}</button></>)
+}
+
+function MyLoans() {
+  const [rows, setRows] = useState([])
+  useEffect(() => { api('/loans/mine').then(setRows).catch(() => {}) }, [])
+  const today = new Date().toISOString().slice(0, 10)
+  return (<table><thead><tr><th>Ouvrage</th><th>Emprunté le</th><th>À rendre le</th><th>Statut</th></tr></thead>
+    <tbody>{rows.map(l => <tr key={l.id}><td>{l.book.title}</td><td>{l.loanDate}</td><td>{l.dueDate}</td>
+      <td className={!l.returnDate && l.dueDate < today ? 'late' : ''}>{l.returnDate ? 'Rendu le ' + l.returnDate : l.dueDate < today ? 'En retard' : 'En cours'}</td></tr>)}
+      {!rows.length && <tr><td colSpan="4">Vous n'avez aucun emprunt.</td></tr>}</tbody></table>)
 }
 
 function useBooks(q = '') {
@@ -88,4 +141,35 @@ function Librarian({ run }) {
     <div className="row">
       {['name', 'email', 'studentId'].map(k => <input key={k} placeholder={{ name: 'Nom complet', email: 'Email', studentId: 'N° étudiant' }[k]} value={r[k]} onChange={e => setR({ ...r, [k]: e.target.value })} />)}
       <button className="p" disabled={!r.name} onClick={() => run(async () => { await api('/readers', 'POST', r); setR({ name: '', email: '', studentId: '' }) }, 'Lecteur ajouté')}>Ajouter le lecteur</button></div></>)
+}
+
+function Account({ run }) {
+  const empty = { currentPassword: '', newPassword: '', confirm: '' }
+  const [f, setF] = useState(empty)
+  const set = k => e => setF({ ...f, [k]: e.target.value })
+  const submit = () => run(async () => {
+    if (f.newPassword !== f.confirm) throw new Error('La confirmation ne correspond pas au nouveau mot de passe')
+    await api('/auth/password', 'POST', { currentPassword: f.currentPassword, newPassword: f.newPassword })
+    setF(empty)
+  }, 'Mot de passe modifié')
+  return (<>
+    <h2>Changer mon mot de passe</h2>
+    <div className="row">
+      <input type="password" autoComplete="current-password" placeholder="Mot de passe actuel" value={f.currentPassword} onChange={set('currentPassword')} />
+      <input type="password" autoComplete="new-password" placeholder="Nouveau mot de passe (8 caractères min.)" value={f.newPassword} onChange={set('newPassword')} />
+      <input type="password" autoComplete="new-password" placeholder="Confirmer le nouveau mot de passe" value={f.confirm} onChange={set('confirm')} onKeyDown={e => e.key === 'Enter' && f.currentPassword && f.newPassword && f.confirm && submit()} />
+      <button className="p" disabled={!f.currentPassword || !f.newPassword || !f.confirm} onClick={submit}>Modifier le mot de passe</button></div></>)
+}
+
+function ConfirmLogout({ onCancel, onConfirm }) {
+  useEffect(() => {
+    const k = e => e.key === 'Escape' && onCancel()
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [onCancel])
+  return (<div className="overlay" onClick={onCancel}>
+    <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title" onClick={e => e.stopPropagation()}>
+      <h2 id="dlg-title">Se déconnecter ?</h2>
+      <p>Vous devrez saisir à nouveau vos identifiants pour retrouver votre compte.</p>
+      <div className="row"><button onClick={onCancel} autoFocus>Annuler</button><button className="p" onClick={onConfirm}>Se déconnecter</button></div></div></div>)
 }

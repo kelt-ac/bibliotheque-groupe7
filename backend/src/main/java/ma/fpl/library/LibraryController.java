@@ -3,6 +3,8 @@ import java.time.LocalDate;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +38,11 @@ public class LibraryController {
   // ---- Emprunts ----
   @GetMapping("/loans/active") List<Loan> active() { return loans.findByReturnDateIsNullOrderByDueDate(); }
   @GetMapping("/loans/overdue") List<Loan> overdue() { return loans.findByReturnDateIsNullAndDueDateBeforeOrderByDueDate(LocalDate.now()); }
+
+  @GetMapping("/loans/mine") List<Loan> mine(@AuthenticationPrincipal Jwt jwt) {   // emprunts du lecteur connecté
+    Object rid = jwt.getClaim("readerId");
+    return rid == null ? List.of() : loans.findByReaderIdOrderByLoanDateDesc(((Number) rid).longValue());
+  }
 
   @PostMapping("/loans") @Transactional
   Loan borrow(@RequestBody Map<String, Long> req) {
