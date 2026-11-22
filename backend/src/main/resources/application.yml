@@ -9,3 +9,5 @@ spring:
 app:
   max-loans: 3        # limite d'emprunts par lecteur
   loan-days: 14       # durée d'un emprunt
+management:
+  endpoints.web.exposure.include: health
