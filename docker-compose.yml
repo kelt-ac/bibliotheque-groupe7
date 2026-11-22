@@ -19,8 +19,8 @@ services:
       DB_URL: jdbc:mysql://db:3306/library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       DB_USER: library
       DB_PASSWORD: library
-      APP_JWT_SECRET: cle-de-developpement-locale-au-moins-32-caracteres
-      APP_ADMIN_PASSWORD: admin
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD}
     depends_on: { db: { condition: service_healthy } }
   web:
     build: ./frontend
