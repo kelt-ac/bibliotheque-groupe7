@@ -24,7 +24,7 @@ spec:
 
       containers:
         - name: backend
-          image: biblio-backend:1
+          image: biblio-backend:2
           imagePullPolicy: Never
           ports:
             - containerPort: 8080
@@ -35,6 +35,8 @@ spec:
                 name: app-config
 
           env:
+            - name: DB_URL 
+              value: DB_URL:jdbc:mysql://db:3306/library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
