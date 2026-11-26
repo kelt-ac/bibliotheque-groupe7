@@ -36,7 +36,7 @@ spec:
 
           env:
             - name: DB_URL 
-              value: jdbc:mysql://db:3306/library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+              value: "jdbc:mysql://db:3306/library?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
